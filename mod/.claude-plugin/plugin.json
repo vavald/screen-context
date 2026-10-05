@@ -1,6 +1,6 @@
 {
   "name": "screen-context",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Hands what you captured with both ⌘ keys to Claude along with your next message.",
   "author": {
     "name": "vavald"

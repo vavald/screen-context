@@ -52,14 +52,16 @@ export const register: Register = on => {
         {captures.map(capture => {
           const name = capture.window ? `${capture.app} — ${capture.window}` : capture.app
           return (
-            // Keyed, so hovering the thumbnail reveals its ×.
+            // Keyed, so hovering the thumbnail brings its × in.
             <Box key={capture.id}>
               {capture.thumbnail && Svg ? (
                 <Svg source={thumbnailSvg(capture.thumbnail)} alt={name} />
               ) : (
                 <Text wrap="truncate-end">{name}</Text>
               )}
-              <Box position="absolute" top={0} right={0} display="none" hover={{ display: 'flex' }}>
+              {/* Parked above the band, which clips it, and moved onto the top-right corner on hover:
+                  the desktop draws a display="none" reveal as a card above the thumbnail instead. */}
+              <Box position="absolute" top={-50} right={0} hover={{ top: 0 }}>
                 <Button key={`remove-${capture.id}`} label="×" onPress={() => settle($, capture.id, 'removed from the bar')} />
               </Box>
             </Box>

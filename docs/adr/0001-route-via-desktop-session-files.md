@@ -1,0 +1,3 @@
+# Route captures by reading the Claude desktop app's session files
+
+A desktop mod can't tell which session is on screen, so the Helper decides where a Capture goes. It reads `lastFocusedAt` from the app's internal session files (`~/Library/Application Support/Claude/claude-code-sessions/**/local_*.json`), reopens the Recent session with the undocumented `claude://code/continue?session=local_<id>` link, and otherwise opens `claude://code/new?q=…`. Both the file format and the continue link are private to the app and can break on any update; we accepted that to get Codex-style automatic routing instead of always opening a new session.

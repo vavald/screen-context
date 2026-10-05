@@ -23,3 +23,7 @@ _Avoid_: AX tree, OCR output, page text
 **Helper**:
 The macOS app that listens for the Hotkey and takes Captures.
 _Avoid_: daemon, agent, watcher
+
+**Mod**:
+The Claude Code plugin that hands a Capture to Claude along with the message you send.
+_Avoid_: plugin, extension, hook

@@ -1,0 +1,11 @@
+{
+  "name": "screen-context",
+  "owner": { "name": "vavald" },
+  "plugins": [
+    {
+      "name": "screen-context",
+      "source": "./mod",
+      "description": "Hands what you captured with both ⌘ keys to Claude along with your next message."
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "screen-context",
+  "version": "0.1.0",
+  "description": "Hands what you captured with both ⌘ keys to Claude along with your next message.",
+  "author": {
+    "name": "vavald"
+  },
+  "types": "./types/index.d.ts"
+}

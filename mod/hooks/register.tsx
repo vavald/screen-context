@@ -62,7 +62,7 @@ export const register: Register = on => {
               {/* Parked above the band, which clips it, and moved onto the top-right corner on hover:
                   the desktop draws a display="none" reveal as a card above the thumbnail instead. */}
               <Box position="absolute" top={-50} right={0} hover={{ top: 0 }}>
-                <Button key={`remove-${capture.id}`} label="×" onPress={() => settle($, capture.id, 'removed from the bar')} />
+                <Button key={`remove-${capture.id}`} label="×" variant="primary" onPress={() => settle($, capture.id, 'removed from the bar')} />
               </Box>
             </Box>
           )
@@ -108,9 +108,12 @@ async function settle($: EngineInterface, id: string, how: string) {
   await update($, bar, captures => captures.filter(capture => capture.id !== id))
 }
 
-/** The Screenshot's thumbnail inside an SVG: the desktop draws no raster image for a mod. */
+/**
+ * The Screenshot's thumbnail inside an SVG (the desktop draws no raster image for a mod), with 8 px of room above
+ * and right of it, so the × in the SVG's corner sits across the thumbnail's.
+ */
 function thumbnailSvg(dataUrl: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="80" viewBox="0 0 128 80"><clipPath id="c"><rect width="128" height="80" rx="6"/></clipPath><image href="${dataUrl}" width="128" height="80" preserveAspectRatio="xMidYMid slice" clip-path="url(#c)"/></svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="136" height="88" viewBox="0 0 136 88"><clipPath id="c"><rect y="8" width="128" height="80" rx="6"/></clipPath><image href="${dataUrl}" y="8" width="128" height="80" preserveAspectRatio="xMidYMid slice" clip-path="url(#c)"/></svg>`
 }
 
 function describe(capture: Capture): string {

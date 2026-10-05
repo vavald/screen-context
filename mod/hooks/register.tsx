@@ -43,18 +43,19 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const captures = await read($, bar)
-    // Captures only go to sessions in the desktop app.
-    if (captures.length === 0 || e.surface !== 'desktop') return next(e)
-    const { Box, Button, Svg, Text } = $.ui.resolve(e)
+    if (captures.length === 0) return next(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
+    // The terminal has no Svg: it names each capture instead.
+    const Svg = e.surface === 'terminal' ? undefined : $.ui.resolve(e).Svg
     return (
-      <Box flexDirection="row" gap={1}>
+      <Box flexDirection="row" flexWrap="wrap" gap={1}>
         {captures.map(capture => {
           const name = capture.window ? `${capture.app} — ${capture.window}` : capture.app
           return (
             // Keyed, so hovering the thumbnail reveals its ×.
             <Box key={capture.id}>
-              {capture.thumbnail ? (
-                <Svg source={thumbnail(capture.thumbnail)} alt={name} width={128} height={80} />
+              {capture.thumbnail && Svg ? (
+                <Svg source={thumbnailSvg(capture.thumbnail)} alt={name} />
               ) : (
                 <Text wrap="truncate-end">{name}</Text>
               )}
@@ -106,14 +107,14 @@ async function settle($: EngineInterface, id: string, how: string) {
 }
 
 /** The Screenshot's thumbnail inside an SVG: the desktop draws no raster image for a mod. */
-function thumbnail(dataUrl: string): string {
+function thumbnailSvg(dataUrl: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="80" viewBox="0 0 128 80"><clipPath id="c"><rect width="128" height="80" rx="6"/></clipPath><image href="${dataUrl}" width="128" height="80" preserveAspectRatio="xMidYMid slice" clip-path="url(#c)"/></svg>`
 }
 
 function describe(capture: Capture): string {
   const where = capture.window ? `${capture.app}, window "${capture.window}"` : capture.app
   return [
-    `The user captured their screen while in ${where} (capture ${capture.id}).`,
+    `The user captured their screen while in ${where}.`,
     capture.screenshot
       ? `Screenshot of the whole display: ${capture.screenshot}. Open it with the Read tool before answering.`
       : 'No screenshot was taken.',

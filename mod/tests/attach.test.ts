@@ -82,7 +82,18 @@ test('the bar shows the screenshot of each capture waiting for this session', as
   await $.session.start({ cwd: '/Users/me', surface: 'desktop', isInteractive: true })
   await clock.advance(1_000)
   const bar = await $.ui.mount(abovePrompt)
-  expect(await bar.findAll({ type: 'Svg' })).toHaveLength(2)
+  const shots = await bar.findAll({ type: 'Svg' })
+  expect(shots).toHaveLength(2)
+  expect(shots[0]?.props.source).toContain(pricing.thumbnail)
+})
+
+test('the terminal, which draws no screenshots, names each capture in the bar', async ($, on) => {
+  session(on, { [`${dir}/7f3a2c.json`]: JSON.stringify(pricing) })
+  const clock = mock.clock(on)
+  await $.session.start({ cwd: '/Users/me', surface: 'terminal', isInteractive: true })
+  await clock.advance(1_000)
+  const bar = await $.ui.mount({ ...abovePrompt, surface: 'terminal' })
+  expect(await bar.find({ type: 'Text', text: /Safari/ })).toBeDefined()
 })
 
 test('a capture removed from the bar stays behind', async ($, on) => {

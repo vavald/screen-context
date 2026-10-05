@@ -25,10 +25,6 @@ func capture() {
     guard let app = NSWorkspace.shared.frontmostApplication else { return }
     let id = String(format: "%06x", UInt32.random(in: 0..<0x100_0000))
     let takenAt = Date().timeIntervalSince1970 * 1000
-    guard let session = route(sessions: desktopSessions()) else {
-        log.error("capture \(id): no session in Claude to send it to")
-        return
-    }
     try? FileManager.default.createDirectory(at: store, withIntermediateDirectories: true)
 
     let axApp = AXUIElementCreateApplication(app.processIdentifier)
@@ -46,6 +42,11 @@ func capture() {
     let title = window.flatMap { attribute($0, kAXTitleAttribute) as? String } ?? ""
     let appName = app.localizedName ?? app.bundleIdentifier ?? "App"
 
+    guard let session = route(sessions: desktopSessions()) else {
+        log.error("capture \(id): no session in Claude to send it to")
+        try? FileManager.default.removeItem(at: png)
+        return
+    }
     let record = CaptureRecord(id: id, takenAt: takenAt, app: appName, window: title,
                                screenshot: screenshotTaken ? png.path : nil,
                                thumbnail: screenshotTaken ? thumbnail(of: png) : nil,
@@ -94,6 +95,7 @@ private func prune() {
 }
 
 /// The Claude Code sessions the desktop app knows about (see docs/adr/0001).
+// ponytail: parses every session file whole (~0.5 s for 200); read only the fields needed if that grows.
 private func desktopSessions() -> [DesktopSession] {
     let root = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/Claude/claude-code-sessions")

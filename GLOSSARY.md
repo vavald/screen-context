@@ -31,7 +31,7 @@ _Avoid_: plugin, extension, hook
 ## Routing
 
 **Open session**:
-The session on screen in the Claude app's Code tab, the one you focused last. Every Capture goes there.
+The session you focused last in the Claude app's Code tab, usually the one on screen. Every Capture goes there.
 _Avoid_: current chat, active session, recent session
 
 **Pending capture**:

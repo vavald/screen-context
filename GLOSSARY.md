@@ -27,3 +27,13 @@ _Avoid_: daemon, agent, watcher
 **Mod**:
 The Claude Code plugin that hands a Capture to Claude along with the message you send.
 _Avoid_: plugin, extension, hook
+
+## Routing
+
+**Recent session**:
+The session that was on screen when you last left the Claude app, if that was under 60 seconds ago. Captures go there instead of into a new session.
+_Avoid_: current chat, active session, last session
+
+**Pending capture**:
+A Capture waiting to go out with your next message. Several can be pending at once; each can be removed before sending.
+_Avoid_: queued capture, draft capture, attachment

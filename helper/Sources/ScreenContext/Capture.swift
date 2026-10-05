@@ -41,36 +41,40 @@ final class Capturer {
 
         // The Screenshot first, before anything on screen moves.
         let png = store.appendingPathComponent("\(id).png")
-        let shot = screenshot(displayRect(around: window), to: png)
+        let screenshotTaken = screenshot(displayRect(around: window), to: png)
         var budget = 20_000
-        let text = window.map { screenText(of: readTree($0, until: Date() + 3, budget: &budget)) } ?? ""
+        var text = window.map { screenText(of: readTree($0, until: Date() + 3, budget: &budget)) } ?? ""
+        // A window too big to read in time: say so, rather than let Claude think it saw everything.
+        if budget <= 0 && !text.hasSuffix("[truncated]") { text += "\n[truncated]" }
         let title = window.flatMap { attribute($0, kAXTitleAttribute) as? String } ?? ""
         let appName = app.localizedName ?? app.bundleIdentifier ?? "App"
 
         if let d = draft, d.captureIds.contains(where: isDone) { draft = nil }
         let claudeLastActiveAt = app.bundleIdentifier == claudeBundleID ? takenAt : claudeLeftAt
-        let to = route(captureId: id, now: takenAt, claudeLastActiveAt: claudeLastActiveAt, sessions: desktopSessions(), draft: draft)
+        let destination = route(captureId: id, now: takenAt, claudeLastActiveAt: claudeLastActiveAt, sessions: desktopSessions(), draft: draft)
 
-        var session: String?
-        if case .recentSession(let s) = to { session = s.cliSessionId }
+        let session: String?
+        let link: String
+        switch destination {
+        case .recentSession(let s):
+            session = s.cliSessionId
+            link = "claude://code/continue?session=\(s.id)"
+        case .newSession(let ids):
+            session = nil
+            markers[id] = title.isEmpty ? "📸 \(appName) (capture \(id))" : "📸 \(appName) — \"\(title)\" (capture \(id))"
+            draft = Draft(captureIds: ids, openedAt: nowMs)
+            link = "claude://code/new?q=" + encode(ids.compactMap { markers[$0] }.joined(separator: "\n") + "\n")
+        }
         let record = CaptureRecord(id: id, takenAt: takenAt, app: appName, window: title,
-                                   screenshot: shot ? png.path : nil, text: text, session: session)
+                                   screenshot: screenshotTaken ? png.path : nil, text: text, session: session)
         do {
             try JSONEncoder().encode(record).write(to: store.appendingPathComponent("\(id).json"), options: .atomic)
         } catch {
             log.error("could not save capture \(id): \(error)")
             return
         }
-
-        switch to {
-        case .recentSession(let s):
-            open("claude://code/continue?session=\(s.id)")
-        case .newSession(let ids):
-            markers[id] = title.isEmpty ? "📸 \(appName) (capture \(id))" : "📸 \(appName) — \"\(title)\" (capture \(id))"
-            draft = Draft(captureIds: ids, openedAt: nowMs)
-            open("claude://code/new?q=" + encode(ids.compactMap { markers[$0] }.joined(separator: "\n") + "\n"))
-        }
-        log.info("capture \(id) of \(appName): \(text.count) characters, routed \(String(describing: to))")
+        open(link)
+        log.info("capture \(id) of \(appName): \(text.count) characters, routed \(String(describing: destination))")
         prune()
     }
 }
@@ -108,8 +112,10 @@ private func prune() {
         let created = (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
         return (id: url.deletingPathExtension().lastPathComponent, takenAt: created.timeIntervalSince1970 * 1000)
     }
-    for id in capturesToDelete(captures) {
-        for ext in ["json", "png", "done"] { try? FileManager.default.removeItem(at: store.appendingPathComponent("\(id).\(ext)")) }
+    // Anything not part of a kept Capture goes too, like a Screenshot whose record failed to save.
+    let kept = Set(captures.map(\.id)).subtracting(capturesToDelete(captures))
+    for file in files where !kept.contains(file.deletingPathExtension().lastPathComponent) {
+        try? FileManager.default.removeItem(at: file)
     }
 }
 
@@ -121,8 +127,10 @@ private func desktopSessions() -> [DesktopSession] {
     return files.filter { $0.lastPathComponent.hasPrefix("local_") && $0.pathExtension == "json" }.compactMap { url in
         guard let data = try? Data(contentsOf: url),
               let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let id = o["sessionId"] as? String else { return nil }
-        return DesktopSession(id: id, cliSessionId: o["cliSessionId"] as? String ?? "",
+              let id = o["sessionId"] as? String,
+              // Without it no Mod could pick a Capture up in that session.
+              let cliSessionId = o["cliSessionId"] as? String else { return nil }
+        return DesktopSession(id: id, cliSessionId: cliSessionId,
                               lastFocusedAt: o["lastFocusedAt"] as? Double ?? 0, isArchived: o["isArchived"] as? Bool ?? false)
     }
 }
@@ -167,7 +175,9 @@ private func readTree(_ e: AXUIElement, until deadline: Date, budget: inout Int,
     func string(_ i: Int) -> String? { v.indices.contains(i) ? v[i] as? String : nil }
     var node = AXNode(role: string(0) ?? "", title: string(1), value: string(2), description: string(3))
     if depth < 100, v.indices.contains(4), let kids = v[4] as? [AXUIElement] {
-        for kid in kids where budget > 0 && Date() < deadline {
+        for kid in kids {
+            // Out of time or elements: stop, and tell the caller through the budget.
+            guard budget > 0, Date() < deadline else { budget = 0; break }
             node.children.append(readTree(kid, until: deadline, budget: &budget, depth: depth + 1))
         }
     }

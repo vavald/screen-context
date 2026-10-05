@@ -34,6 +34,10 @@ _Avoid_: plugin, extension, hook
 The session that was on screen when you last left the Claude app, if that was under 60 seconds ago. Captures go there instead of into a new session.
 _Avoid_: current chat, active session, last session
 
+**Draft**:
+A new session the Helper opened with Captures waiting in its prompt box, before you send it.
+_Avoid_: new chat, pending session
+
 **Pending capture**:
 A Capture waiting to go out with your next message. Several can be pending at once; each can be removed before sending.
 _Avoid_: queued capture, draft capture, attachment

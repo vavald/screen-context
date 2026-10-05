@@ -16,10 +16,10 @@ const pricing = {
 const typed = { wait: false, origin: { kind: 'composer' } } as const
 
 /** This session, with a capture folder in memory beneath the mod. */
-function session(on: On, files: Record<string, string>) {
+function session(on: On, files: Record<string, string>, me = { id: 'this-session' }) {
   mock.env(on, { HOME: '/Users/me' })
   on('session.start', ($, e) => ({ cwd: e.cwd }))
-  on('session.id', () => ({ value: 'this-session' }))
+  on('session.id', () => ({ value: me.id }))
   on('fs.list', ($, e) => ({
     value: Object.keys(files)
       .filter(path => path.startsWith(`${e.path}/`))
@@ -45,6 +45,14 @@ function sent(on: On) {
   })
   return contexts
 }
+
+/** The bar above the prompt, as the desktop app draws it. */
+const abovePrompt = {
+  plugin: 'screen-context',
+  surface: 'desktop',
+  component: 'AbovePrompt',
+  props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 80, scroll: { offset: 0, bodyRows: 10 }, view: {} },
+} as const
 
 test('a capture sent to this session goes along with the next message', async ($, on) => {
   session(on, { [`${dir}/7f3a2c.json`]: JSON.stringify(pricing) })
@@ -78,12 +86,7 @@ test('a capture removed from the bar stays behind', async ($, on) => {
   const contexts = sent(on)
   await $.session.start({ cwd: '/Users/me', surface: 'desktop', isInteractive: true })
   await clock.advance(1_000)
-  const bar = await $.ui.mount({
-    plugin: 'screen-context',
-    surface: 'desktop',
-    component: 'AbovePrompt',
-    props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 80, scroll: { offset: 0, bodyRows: 10 }, view: {} },
-  })
+  const bar = await $.ui.mount(abovePrompt)
   expect(await bar.find({ text: 'Pricing · Linear' })).toBeDefined()
   await bar.press({ key: 'remove-7f3a2c' })
   await $.prompt.submit({ text: 'which plan should I pick?', ...typed })
@@ -97,4 +100,27 @@ test("a background task's notification leaves the capture for the person's next 
   await $.prompt.submit({ text: 'which plan should I pick?', ...typed })
   expect(contexts[0]).toEqual([])
   expect(contexts[1]).toHaveLength(1)
+})
+
+test("a message that doesn't go out leaves its capture for the next one", async ($, on) => {
+  session(on, { [`${dir}/7f3a2c.json`]: JSON.stringify(pricing) })
+  const contexts: (readonly string[])[] = []
+  on('prompt.submit', ($, e) => {
+    contexts.push(e.context ?? [])
+    return contexts.length === 1 ? { drop: 'a hook stopped it' } : { text: e.text, context: e.context }
+  })
+  await $.prompt.submit({ text: 'which plan should I pick?', ...typed })
+  await $.prompt.submit({ text: 'which plan should I pick?', ...typed })
+  expect(contexts[1]).toHaveLength(1)
+})
+
+test('after /clear the bar lists the captures sent to the session that goes on', async ($, on) => {
+  const me = { id: 'this-session' }
+  session(on, { [`${dir}/7f3a2c.json`]: JSON.stringify({ ...pricing, session: 'after-clear' }) }, me)
+  const clock = mock.clock(on)
+  await $.session.start({ cwd: '/Users/me', surface: 'desktop', isInteractive: true })
+  me.id = 'after-clear'
+  await clock.advance(1_000)
+  const bar = await $.ui.mount(abovePrompt)
+  expect(await bar.find({ text: 'Pricing · Linear' })).toBeDefined()
 })

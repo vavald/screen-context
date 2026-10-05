@@ -3,6 +3,6 @@ export type PendingCapture = { id: string; app: string; window: string }
 
 declare module 'claude-code' {
   interface PluginState {
-    'screen-context': { pending: PendingCapture[] }
+    'screen-context': { bar: PendingCapture[] }
   }
 }

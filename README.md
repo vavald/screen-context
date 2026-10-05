@@ -21,6 +21,15 @@ Press both ⌘ keys anywhere on the Mac and land in Claude Code with what you we
    ```
 5. Restart the Claude app: a session already running when the Mod was installed doesn't have it.
 
+## Update
+
+After changing the Helper, run `helper/install.sh` again. After changing the Mod, bump `version` in `mod/.claude-plugin/plugin.json` (an update skips an unchanged version), then:
+
+```bash
+claude plugin marketplace update screen-context
+claude plugin update screen-context@screen-context
+```
+
 ## When nothing happens
 
 `log stream --predicate 'subsystem == "io.github.vavald.ScreenContext"'` shows each Capture and where it went; `pkill -USR1 ScreenContext` takes one without the keyboard.

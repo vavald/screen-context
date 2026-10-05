@@ -4,9 +4,7 @@ import ScreenContextCore
 import os
 
 let log = Logger(subsystem: "io.github.vavald.ScreenContext", category: "capture")
-let claudeBundleID = "com.anthropic.claudefordesktop"
 let store = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/screen-context")
-var nowMs: Double { Date().timeIntervalSince1970 * 1000 }
 
 /// What the Helper writes next to each Screenshot, and the Mod reads.
 struct CaptureRecord: Codable {
@@ -16,67 +14,51 @@ struct CaptureRecord: Codable {
     let window: String
     /// Absent when Screen Recording isn't allowed.
     let screenshot: String?
+    /// A small JPEG of the Screenshot as a data URL, for the Mod to show above the prompt.
+    let thumbnail: String?
     let text: String
-    /// The CLI session id of the Recent session this Capture went to; absent when it went to a new session.
-    let session: String?
+    /// The CLI session id of the Open session this Capture went to.
+    let session: String
 }
 
-final class Capturer {
-    /// When the Claude app last stopped being frontmost.
-    var claudeLeftAt: Double?
-    private var draft: Draft?
-    /// The prompt-box line for each Capture that went to a new session.
-    private var markers: [String: String] = [:]
-
-    func capture() {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return }
-        let id = String(format: "%06x", UInt32.random(in: 0..<0x100_0000))
-        let takenAt = nowMs
-        try? FileManager.default.createDirectory(at: store, withIntermediateDirectories: true)
-
-        let axApp = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetMessagingTimeout(axApp, 1)
-        enableAccessibility(app)
-        let window = element(axApp, kAXFocusedWindowAttribute)
-
-        // The Screenshot first, before anything on screen moves.
-        let png = store.appendingPathComponent("\(id).png")
-        let screenshotTaken = screenshot(displayRect(around: window), to: png)
-        var budget = 20_000
-        var text = window.map { screenText(of: readTree($0, until: Date() + 3, budget: &budget)) } ?? ""
-        // A window too big to read in time: say so, rather than let Claude think it saw everything.
-        if budget <= 0 && !text.hasSuffix("[truncated]") { text += "\n[truncated]" }
-        let title = window.flatMap { attribute($0, kAXTitleAttribute) as? String } ?? ""
-        let appName = app.localizedName ?? app.bundleIdentifier ?? "App"
-
-        if let d = draft, d.captureIds.contains(where: isDone) { draft = nil }
-        let claudeLastActiveAt = app.bundleIdentifier == claudeBundleID ? takenAt : claudeLeftAt
-        let destination = route(captureId: id, now: takenAt, claudeLastActiveAt: claudeLastActiveAt, sessions: desktopSessions(), draft: draft)
-
-        let session: String?
-        let link: String
-        switch destination {
-        case .recentSession(let s):
-            session = s.cliSessionId
-            link = "claude://code/continue?session=\(s.id)"
-        case .newSession(let ids):
-            session = nil
-            markers[id] = title.isEmpty ? "📸 \(appName) (capture \(id))" : "📸 \(appName) — \"\(title)\" (capture \(id))"
-            draft = Draft(captureIds: ids, openedAt: nowMs)
-            link = "claude://code/new?q=" + encode(ids.compactMap { markers[$0] }.joined(separator: "\n") + "\n")
-        }
-        let record = CaptureRecord(id: id, takenAt: takenAt, app: appName, window: title,
-                                   screenshot: screenshotTaken ? png.path : nil, text: text, session: session)
-        do {
-            try JSONEncoder().encode(record).write(to: store.appendingPathComponent("\(id).json"), options: .atomic)
-        } catch {
-            log.error("could not save capture \(id): \(error)")
-            return
-        }
-        open(link)
-        log.info("capture \(id) of \(appName): \(text.count) characters, routed \(String(describing: destination))")
-        prune()
+func capture() {
+    guard let app = NSWorkspace.shared.frontmostApplication else { return }
+    let id = String(format: "%06x", UInt32.random(in: 0..<0x100_0000))
+    let takenAt = Date().timeIntervalSince1970 * 1000
+    guard let session = route(sessions: desktopSessions()) else {
+        log.error("capture \(id): no session in Claude to send it to")
+        return
     }
+    try? FileManager.default.createDirectory(at: store, withIntermediateDirectories: true)
+
+    let axApp = AXUIElementCreateApplication(app.processIdentifier)
+    AXUIElementSetMessagingTimeout(axApp, 1)
+    enableAccessibility(app)
+    let window = element(axApp, kAXFocusedWindowAttribute)
+
+    // The Screenshot first, before anything on screen moves.
+    let png = store.appendingPathComponent("\(id).png")
+    let screenshotTaken = screenshot(displayRect(around: window), to: png)
+    var budget = 20_000
+    var text = window.map { screenText(of: readTree($0, until: Date() + 3, budget: &budget)) } ?? ""
+    // A window too big to read in time: say so, rather than let Claude think it saw everything.
+    if budget <= 0 && !text.hasSuffix("[truncated]") { text += "\n[truncated]" }
+    let title = window.flatMap { attribute($0, kAXTitleAttribute) as? String } ?? ""
+    let appName = app.localizedName ?? app.bundleIdentifier ?? "App"
+
+    let record = CaptureRecord(id: id, takenAt: takenAt, app: appName, window: title,
+                               screenshot: screenshotTaken ? png.path : nil,
+                               thumbnail: screenshotTaken ? thumbnail(of: png) : nil,
+                               text: text, session: session.cliSessionId)
+    do {
+        try JSONEncoder().encode(record).write(to: store.appendingPathComponent("\(id).json"), options: .atomic)
+    } catch {
+        log.error("could not save capture \(id): \(error)")
+        return
+    }
+    open("claude://code/continue?session=\(session.id)")
+    log.info("capture \(id) of \(appName): \(text.count) characters, sent to \(session.id)")
+    prune()
 }
 
 /// Puts Chrome and Electron apps into screen-reader mode so their windows expose text.
@@ -94,16 +76,8 @@ private let chromium: Set = [
     "com.operasoftware.Opera",
 ]
 
-private func isDone(_ id: String) -> Bool {
-    FileManager.default.fileExists(atPath: store.appendingPathComponent("\(id).done").path)
-}
-
 private func open(_ link: String) {
     if let url = URL(string: link) { NSWorkspace.shared.open(url) }
-}
-
-private func encode(_ s: String) -> String {
-    s.addingPercentEncoding(withAllowedCharacters: CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")) ?? ""
 }
 
 private func prune() {
@@ -160,6 +134,17 @@ private func screenshot(_ rect: CGRect, to url: URL) -> Bool {
     do { try p.run() } catch { return false }
     p.waitUntilExit()
     return p.terminationStatus == 0 && FileManager.default.fileExists(atPath: url.path)
+}
+
+/// A JPEG small enough to draw above the prompt, as a data URL.
+private func thumbnail(of png: URL) -> String? {
+    let options = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceThumbnailMaxPixelSize: 320] as CFDictionary
+    let jpeg = NSMutableData()
+    guard let source = CGImageSourceCreateWithURL(png as CFURL, nil),
+          let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options),
+          let destination = CGImageDestinationCreateWithData(jpeg, "public.jpeg" as CFString, 1, nil) else { return nil }
+    CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.7] as CFDictionary)
+    return CGImageDestinationFinalize(destination) ? "data:image/jpeg;base64," + (jpeg as Data).base64EncodedString() : nil
 }
 
 // MARK: Accessibility

@@ -3,7 +3,6 @@ import ServiceManagement
 import ScreenContextCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    let capturer = Capturer()
     var detector = HotkeyDetector()
     var statusItem: NSStatusItem!
     var hotkeyMonitor: Any?
@@ -29,16 +28,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         workspace.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { note in
             if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication { enableAccessibility(app) }
         }
-        workspace.addObserver(forName: NSWorkspace.didDeactivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
-            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            if app?.bundleIdentifier == claudeBundleID { self?.capturer.claudeLeftAt = nowMs }
-        }
         NSWorkspace.shared.frontmostApplication.map(enableAccessibility)
 
         // `pkill -USR1 ScreenContext` takes a Capture without the keyboard, for testing.
         signal(SIGUSR1, SIG_IGN)
         testTrigger = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
-        testTrigger?.setEventHandler { [weak self] in self?.capturer.capture() }
+        testTrigger?.setEventHandler { capture() }
         testTrigger?.resume()
     }
 
@@ -46,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let hotkeyMonitor { NSEvent.removeMonitor(hotkeyMonitor) }
         hotkeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             guard let self, self.detector.handle(flags: event.modifierFlags.rawValue) else { return }
-            self.capturer.capture()
+            capture()
         }
     }
 

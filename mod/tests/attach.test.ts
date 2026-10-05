@@ -8,6 +8,7 @@ const pricing = {
   app: 'Safari',
   window: 'Pricing · Linear',
   screenshot: `${dir}/7f3a2c.png`,
+  thumbnail: 'data:image/jpeg;base64,/9j/4AAQ',
   text: 'Free\nPro\n[button] Upgrade',
   session: 'this-session',
 }
@@ -64,20 +65,24 @@ test('a capture sent to this session goes along with the next message', async ($
   expect(contexts[0]?.[0]).toContain('Free\nPro\n[button] Upgrade')
 })
 
-test('a capture named in the message goes along with it', async ($, on) => {
-  session(on, { [`${dir}/7f3a2c.json`]: JSON.stringify({ ...pricing, session: undefined }) })
-  const contexts = sent(on)
-  await $.prompt.submit({ text: '📸 Safari — "Pricing · Linear" (capture 7f3a2c)\nwhich plan should I pick?', ...typed })
-  expect(contexts[0]).toHaveLength(1)
-  expect(contexts[0]?.[0]).toContain('Free\nPro\n[button] Upgrade')
-})
-
 test('a capture goes out only once', async ($, on) => {
   session(on, { [`${dir}/7f3a2c.json`]: JSON.stringify(pricing) })
   const contexts = sent(on)
   await $.prompt.submit({ text: 'which plan should I pick?', ...typed })
   await $.prompt.submit({ text: 'and for a team of 5?', ...typed })
   expect(contexts[1]).toEqual([])
+})
+
+test('the bar shows the screenshot of each capture waiting for this session', async ($, on) => {
+  session(on, {
+    [`${dir}/7f3a2c.json`]: JSON.stringify(pricing),
+    [`${dir}/9b1e44.json`]: JSON.stringify({ ...pricing, id: '9b1e44', takenAt: pricing.takenAt + 5_000 }),
+  })
+  const clock = mock.clock(on)
+  await $.session.start({ cwd: '/Users/me', surface: 'desktop', isInteractive: true })
+  await clock.advance(1_000)
+  const bar = await $.ui.mount(abovePrompt)
+  expect(await bar.findAll({ type: 'Svg' })).toHaveLength(2)
 })
 
 test('a capture removed from the bar stays behind', async ($, on) => {
@@ -87,7 +92,6 @@ test('a capture removed from the bar stays behind', async ($, on) => {
   await $.session.start({ cwd: '/Users/me', surface: 'desktop', isInteractive: true })
   await clock.advance(1_000)
   const bar = await $.ui.mount(abovePrompt)
-  expect(await bar.find({ text: 'Pricing · Linear' })).toBeDefined()
   await bar.press({ key: 'remove-7f3a2c' })
   await $.prompt.submit({ text: 'which plan should I pick?', ...typed })
   expect(contexts[0]).toEqual([])
@@ -122,5 +126,5 @@ test('after /clear the bar lists the captures sent to the session that goes on',
   me.id = 'after-clear'
   await clock.advance(1_000)
   const bar = await $.ui.mount(abovePrompt)
-  expect(await bar.find({ text: 'Pricing · Linear' })).toBeDefined()
+  expect(await bar.find({ type: 'Svg' })).toBeDefined()
 })

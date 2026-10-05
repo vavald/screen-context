@@ -11,9 +11,11 @@ type Capture = {
   window: string
   /** Absent when the Helper may not record the screen. */
   screenshot?: string
+  /** A small JPEG of the Screenshot, as a data URL. */
+  thumbnail?: string
   text: string
-  /** The session the Capture went to; absent when it went to a new session. */
-  session?: string
+  /** The CLI session id of the session the Capture went to. */
+  session: string
 }
 
 /** Where a message the person typed comes from: the terminal, Remote Control, the desktop app (an SDK host). */
@@ -34,24 +36,34 @@ export const register: Register = on => {
       const ids = mine.map(capture => capture.id).join()
       if (ids === shown) return
       shown = ids
-      await update($, bar, () => mine.map(({ id, app, window }) => ({ id, app, window })))
+      await update($, bar, () => mine.map(({ id, app, window, thumbnail }) => ({ id, app, window, thumbnail })))
     })
     return started
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const captures = await read($, bar)
-    if (captures.length === 0) return next(e)
-    const { Box, Button, Text } = $.ui.resolve(e)
+    // Captures only go to sessions in the desktop app.
+    if (captures.length === 0 || e.surface !== 'desktop') return next(e)
+    const { Box, Button, Svg, Text } = $.ui.resolve(e)
     return (
-      <Box flexDirection="column">
-        {captures.map(capture => (
-          <Box key={capture.id} flexDirection="row" alignItems="center" gap={1}>
-            <Text dimColor>📸 With your next message:</Text>
-            <Text wrap="truncate-end">{capture.window ? `${capture.app} — ${capture.window}` : capture.app}</Text>
-            <Button key={`remove-${capture.id}`} label="Remove" onPress={() => settle($, capture.id, 'removed from the bar')} />
-          </Box>
-        ))}
+      <Box flexDirection="row" gap={1}>
+        {captures.map(capture => {
+          const name = capture.window ? `${capture.app} — ${capture.window}` : capture.app
+          return (
+            // Keyed, so hovering the thumbnail reveals its ×.
+            <Box key={capture.id}>
+              {capture.thumbnail ? (
+                <Svg source={thumbnail(capture.thumbnail)} alt={name} width={128} height={80} />
+              ) : (
+                <Text wrap="truncate-end">{name}</Text>
+              )}
+              <Box position="absolute" top={0} right={0} display="none" hover={{ display: 'flex' }}>
+                <Button key={`remove-${capture.id}`} label="×" onPress={() => settle($, capture.id, 'removed from the bar')} />
+              </Box>
+            </Box>
+          )
+        })}
       </Box>
     )
   })
@@ -59,9 +71,7 @@ export const register: Register = on => {
   on('prompt.submit', async ($, e, next) => {
     if (!fromPerson.includes(e.origin.kind)) return next(e)
     const me = await $.session.id()
-    const going = (await pendingCaptures($)).filter(
-      capture => capture.session === me || e.text.includes(`(capture ${capture.id})`),
-    )
+    const going = (await pendingCaptures($)).filter(capture => capture.session === me)
     if (going.length === 0) return next(e)
     const result = await next({ ...e, context: [...(e.context ?? []), ...going.map(describe)] })
     // Settled only once the message went out: a hook beneath can still stop it.
@@ -93,6 +103,11 @@ async function pendingCaptures($: EngineInterface): Promise<Capture[]> {
 async function settle($: EngineInterface, id: string, how: string) {
   await $.fs.write(`${await folder($)}/${id}.done`, how).catch(() => undefined)
   await update($, bar, captures => captures.filter(capture => capture.id !== id))
+}
+
+/** The Screenshot's thumbnail inside an SVG: the desktop draws no raster image for a mod. */
+function thumbnail(dataUrl: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="80" viewBox="0 0 128 80"><clipPath id="c"><rect width="128" height="80" rx="6"/></clipPath><image href="${dataUrl}" width="128" height="80" preserveAspectRatio="xMidYMid slice" clip-path="url(#c)"/></svg>`
 }
 
 function describe(capture: Capture): string {

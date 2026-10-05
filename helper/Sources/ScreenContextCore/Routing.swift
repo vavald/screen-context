@@ -16,33 +16,7 @@ public struct DesktopSession: Equatable, Sendable {
     }
 }
 
-/// A new session the Helper opened whose Pending captures haven't been sent yet.
-public struct Draft: Equatable, Sendable {
-    public let captureIds: [String]
-    /// ms since 1970.
-    public let openedAt: Double
-
-    public init(captureIds: [String], openedAt: Double) {
-        self.captureIds = captureIds
-        self.openedAt = openedAt
-    }
-}
-
-public enum Route: Equatable, Sendable {
-    case recentSession(DesktopSession)
-    /// Every Pending capture the new session's prompt box should list.
-    case newSession(captureIds: [String])
-}
-
-/// Where a new Capture goes. `claudeLastActiveAt` is when the Claude app was last frontmost (now if it still is).
-public func route(captureId: String, now: Double, claudeLastActiveAt: Double?, sessions: [DesktopSession], draft: Draft?) -> Route {
-    guard let lastActive = claudeLastActiveAt, now - lastActive < 60_000 else {
-        return .newSession(captureIds: [captureId])
-    }
-    let onScreen = sessions.filter { !$0.isArchived }.max { $0.lastFocusedAt < $1.lastFocusedAt }
-    if let draft, draft.openedAt > onScreen?.lastFocusedAt ?? 0 {
-        return .newSession(captureIds: draft.captureIds + [captureId])
-    }
-    guard let onScreen else { return .newSession(captureIds: [captureId]) }
-    return .recentSession(onScreen)
+/// Where a Capture goes: the Open session, the one focused last in the Code tab; nil when there is none.
+public func route(sessions: [DesktopSession]) -> DesktopSession? {
+    sessions.filter { !$0.isArchived }.max { $0.lastFocusedAt < $1.lastFocusedAt }
 }

@@ -32,4 +32,4 @@ claude plugin update screen-context@screen-context
 
 ## When nothing happens
 
-`log stream --predicate 'subsystem == "io.github.vavald.ScreenContext"'` shows each Capture and where it went; `pkill -USR1 ScreenContext` takes one without the keyboard.
+`log stream --level info --predicate 'subsystem == "io.github.vavald.ScreenContext"'` shows each Capture and where it went; `pkill -USR1 ScreenContext` takes one without the keyboard.

@@ -1,6 +1,14 @@
 # Screen Context
 
-Press both ⌘ keys to show Claude what's on your screen.
+Press both ⌘ keys to show Claude what's on your screen. It's [Appshots](https://learn.chatgpt.com/docs/appshots) from OpenAI's Codex, rebuilt for the Claude desktop app.
+
+![A Numbers budget captured above Claude's prompt: "Summarize the budget trends and flag anything that needs attention."](docs/examples/budget.png)
+
+![An email from Dana and a week in Calendar, captured side by side: "Reply to Dana with a time that works this week."](docs/examples/reply.png)
+
+![A lease PDF in Preview: "What's the notice period, and by when do I need to give it?"](docs/examples/lease.png)
+
+![An API reference page: "Add this endpoint to our API client, with retries on rate limits."](docs/examples/api.png)
 
 Hold left ⌘ and right ⌘ together in any app. Screen Context takes a screenshot of the display you're on, reads the focused window's text, and brings up the Claude desktop app on the Code session you last used, with the capture as a thumbnail above the prompt. Take several and they line up side by side; hover one and press × to drop it. Send your message and the captures go with it: Claude gets the window's text and opens the screenshot.
 

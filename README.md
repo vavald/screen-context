@@ -15,7 +15,7 @@ Hold left ⌘ and right ⌘ together in any app. Screen Context takes a screensh
 ## Requirements
 
 - macOS 14 or later
-- The [Claude desktop app](https://claude.com/download), with at least one session in its Code tab
+- The [Claude desktop app](https://claude.com/download), with at least one session in its Code tab. It needs to run [mods](https://code.claude.com/docs/en/plugins/mods/overview): `/status` in a Code session shows Claude Code 2.1.286 or later.
 - [Claude Code](https://code.claude.com/docs) (`claude`) on your PATH
 - Xcode or its Command Line Tools (Swift 6), to build the menu-bar app
 
@@ -33,12 +33,9 @@ Hold left ⌘ and right ⌘ together in any app. Screen Context takes a screensh
    claude plugin marketplace add vavald/screen-context
    claude plugin install screen-context@screen-context
    ```
-4. Merge this into `~/.claude/settings.json`. The first line turns on function hooks, which the plugin is built on; the second lets Claude open your screenshots without asking each time.
+4. Merge this into `~/.claude/settings.json`, so Claude opens your screenshots without asking each time:
    ```json
-   {
-     "env": { "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1" },
-     "permissions": { "allow": ["Read(~/.claude/screen-context/**)"] }
-   }
+   { "permissions": { "allow": ["Read(~/.claude/screen-context/**)"] } }
    ```
 5. Restart the Claude app.
 
@@ -60,7 +57,7 @@ Hold left ⌘ and right ⌘ together in any app. Screen Context takes a screensh
   log stream --level info --predicate 'subsystem == "io.github.vavald.ScreenContext"'
   ```
   `pkill -USR1 ScreenContext` takes a capture without the keyboard.
-- **The app opens but no thumbnail shows.** Check step 4 and restart the Claude app.
+- **The app opens but no thumbnail shows.** In the Code session, `/status` should show Claude Code 2.1.286 or later, and `/plugin` should list screen-context as enabled. Then restart the Claude app.
 
 ## Update
 
